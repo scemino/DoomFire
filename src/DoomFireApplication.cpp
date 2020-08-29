@@ -81,7 +81,7 @@ const std::uint8_t palette[] = {
     0xEF, 0xEF, 0xC7,
     0xFF, 0xFF, 0xFF};
 
-static int drawPalette(const std::uint8_t *palette, int numColors = 256, int numColorsByRow = 13, const ImVec2 &size = ImVec2(12, 12), const ImVec2 &spacing = ImVec2(2, 2)) {
+static int drawPalette(const std::uint8_t *pal, int numColors = 256, int numColorsByRow = 13, const ImVec2 &size = ImVec2(12, 12), const ImVec2 &spacing = ImVec2(2, 2)) {
   auto pos = ImGui::GetCursorScreenPos();
   const auto begPos = pos;
   auto drawList = ImGui::GetWindowDrawList();
@@ -95,8 +95,8 @@ static int drawPalette(const std::uint8_t *palette, int numColors = 256, int num
       if (num == numColors)
         break;
       num++;
-      auto color = ImColor(
-          static_cast<float>(*palette++) / 255.0f, static_cast<float>(*palette++) / 255.0f, static_cast<float>(*palette++) / 255.0f, 1.0f);
+      auto color = ImColor(static_cast<int>(pal[0]), static_cast<int>(pal[1]), static_cast<int>(pal[2]), 255);
+      pal += 3;
       auto max = ImVec2(pos.x + size.x, pos.y + size.y);
       drawList->AddRectFilled(pos, max, color);
       drawList->AddRect(pos, max, ImColor(0.8f, 0.8f, 0.8f, 1.0f), 0.0f, ImDrawCornerFlags_All, 0.2f);
@@ -194,7 +194,7 @@ void DoomFireApplication::onInit() {
   glBindTexture(GL_TEXTURE_2D, m_img_tex);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, tex_xsz, tex_ysz, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, tex_xsz, tex_ysz, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 
   glGenTextures(1, &m_pal_tex);
   glBindTexture(GL_TEXTURE_1D, m_pal_tex);
