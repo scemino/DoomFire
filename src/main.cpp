@@ -1,7 +1,6 @@
 #include "DoomFireApplication.h"
-#include <iostream>
 
-int main(int argc, char *argv[]) {
+int main() {
   DoomFireApplication app;
   app.run();
   return EXIT_SUCCESS;

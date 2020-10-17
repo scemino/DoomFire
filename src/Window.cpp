@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include <imgui/examples/imgui_impl_opengl3.h>
 #include <imgui/examples/imgui_impl_sdl.h>
+#include <iostream>
 #include <sstream>
 
 Window::Window() = default;
@@ -15,6 +16,17 @@ void Window::init() {
     throw std::runtime_error(ss.str());
   }
 
+  //Check for joysticks
+  if (SDL_NumJoysticks() < 1) {
+    std::cout << "Warning: No joysticks connected!\n";
+  } else {
+    //Load joystick
+    m_gameController = SDL_GameControllerOpen(0);
+    if (!m_gameController) {
+      std::cout << "Warning: Unable to open game controller! SDL Error: " << SDL_GetError() << "\n";
+    }
+  }
+
   // Decide GL+GLSL versions
 #if __APPLE__
   // GL 3.2 Core + GLSL 150
@@ -24,7 +36,7 @@ void Window::init() {
   SDL_GL_SetAttribute(
       SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 #else
   // GL 3.0 + GLSL 130
   const char *glsl_version = "#version 130";
@@ -39,7 +51,7 @@ void Window::init() {
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-  auto window_flags = (SDL_WindowFlags)(
+  auto window_flags = (SDL_WindowFlags) (
       SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
   m_window = SDL_CreateWindow("SDL/OpenGL Doom Fire", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
@@ -92,6 +104,10 @@ bool Window::pollEvent(SDL_Event &event) {
 }
 
 Window::~Window() {
+  //Close game controller
+  SDL_GameControllerClose(m_gameController);
+  m_gameController = nullptr;
+
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplSDL2_Shutdown();
   ImGui::DestroyContext();

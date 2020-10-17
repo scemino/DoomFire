@@ -10,15 +10,15 @@ public:
 
   void init();
   void display();
-  bool pollEvent(SDL_Event& event);
+  bool pollEvent(SDL_Event &event);
 
-  SDL_Window* getNativeHandle()
-  {
+  SDL_Window *getNativeHandle() {
     return m_window;
   }
 
 private:
   SDL_Window *m_window{nullptr};
+  SDL_GameController *m_gameController{nullptr};
   SDL_GLContext m_glContext{nullptr};
 };
 

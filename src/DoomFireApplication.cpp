@@ -81,7 +81,9 @@ const std::uint8_t palette[] = {
     0xEF, 0xEF, 0xC7,
     0xFF, 0xFF, 0xFF};
 
-static int drawPalette(const std::uint8_t *pal, int numColors = 256, int numColorsByRow = 13, const ImVec2 &size = ImVec2(12, 12), const ImVec2 &spacing = ImVec2(2, 2)) {
+static int
+drawPalette(const std::uint8_t *pal, int numColors = 256, int numColorsByRow = 13, const ImVec2 &size = ImVec2(12, 12),
+            const ImVec2 &spacing = ImVec2(2, 2)) {
   auto pos = ImGui::GetCursorScreenPos();
   const auto begPos = pos;
   auto drawList = ImGui::GetWindowDrawList();
@@ -112,14 +114,6 @@ static int drawPalette(const std::uint8_t *pal, int numColors = 256, int numColo
   return index;
 }
 
-DoomFireApplication::DoomFireApplication() = default;
-
-DoomFireApplication::~DoomFireApplication() {
-  glDeleteVertexArrays(1, &m_vao);
-  glDeleteBuffers(1, &m_vbo);
-  glDeleteBuffers(1, &m_ebo);
-}
-
 void DoomFireApplication::reset() {
   // Set whole screen to 0 (color: 0x07,0x07,0x07)
   memset(m_image.data(), 0, m_image.size());
@@ -130,6 +124,9 @@ void DoomFireApplication::reset() {
 
 void DoomFireApplication::onInit() {
   Application::onInit();
+
+  m_vbo = std::make_unique<VertexBuffer>();
+  m_ebo = std::make_unique<VertexBuffer>();
 
   reset();
 
@@ -171,17 +168,12 @@ void DoomFireApplication::onInit() {
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
 
-  glGenVertexArrays(1, &m_vao);
-  glGenBuffers(1, &m_vbo);
-  glGenBuffers(1, &m_ebo);
+  m_vao = std::make_unique<VertexArray>();
+
   // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-  glBindVertexArray(m_vao);
-
-  glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ebo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+  m_vao->bind();
+  m_vbo->buffer(VertexBuffer::Type::Array, sizeof(vertices), vertices);
+  m_ebo->buffer(VertexBuffer::Type::Element, sizeof(indices), indices);
 
   // position attribute
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
@@ -206,8 +198,14 @@ void DoomFireApplication::onInit() {
   glUseProgram(m_shaderProgram);
   glUniform1i(glGetUniformLocation(m_shaderProgram, "img_tex"), 0);
   glUniform1i(glGetUniformLocation(m_shaderProgram, "pal_tex"), 1);
-  glVertexAttrib2f(glGetAttribLocation(m_shaderProgram, "uvscale"), (float) FIRE_WIDTH / (float) tex_xsz, (float) FIRE_HEIGHT / (float) tex_ysz);
+  glVertexAttrib2f(glGetAttribLocation(m_shaderProgram, "uvscale"), (float) FIRE_WIDTH / (float) tex_xsz,
+                   (float) FIRE_HEIGHT / (float) tex_ysz);
 }
+
+int width = 1280;
+int height = 720;
+float amountX = 0.f;
+float amountY = 0.f;
 
 void DoomFireApplication::onEvent(SDL_Event &event) {
   switch (event.type)
@@ -220,6 +218,20 @@ void DoomFireApplication::onEvent(SDL_Event &event) {
     if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
       m_done = true;
     }
+    break;
+  case SDL_CONTROLLERAXISMOTION:
+    if (event.jaxis.axis == 0) {
+      amountX = static_cast<int>((10.f * event.jaxis.value) / std::numeric_limits<std::int16_t>::max());
+    } else if (event.jaxis.axis == 1) {
+      amountY = static_cast<int>((10.f * event.jaxis.value) / std::numeric_limits<std::int16_t>::max());
+    }
+    break;
+  case SDL_JOYBUTTONDOWN: {
+    auto button = event.jbutton.button;
+    if (button == 0) {
+      reset();
+    }
+  }
     break;
   }
 }
@@ -236,13 +248,31 @@ void DoomFireApplication::onRender() {
 
   // draw our first triangle
   glUseProgram(m_shaderProgram);
-  glBindVertexArray(m_vao);// seeing as we only have a single m_vao there's no need to bind it every time, but we'll do so to keep things a bit more organized
+  m_vao->bind();
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
   Application::onRender();
 }
 
 void DoomFireApplication::onUpdate(const TimeSpan &elapsed) {
+  if (amountX != 0) {
+    width += amountX;
+    if (width < 10)
+      width = 10;
+    if (width > 1280 * 2)
+      width = 1280 * 2;
+    reshape(width, height);
+  }
+
+  if (amountY != 0) {
+    height += amountY;
+    if (height < 10)
+      height = 10;
+    if (height > 720 * 2)
+      height = 720 * 2;
+    reshape(width, height);
+  }
+
   // Update palette buffer
   doFire();
 
@@ -283,14 +313,12 @@ void DoomFireApplication::onImGuiRender() {
   ImGui::End();
 }
 
-/***********************************************/
-/**************** MEAT STARTS HERE *************/
 void DoomFireApplication::spreadFire(int src) {
   auto pixel = m_image[src];
   if (pixel == 0) {
     m_image[src - FIRE_WIDTH] = 0;
   } else {
-    auto randIdx = static_cast<int>(3.0f * static_cast<float>(rand()) / RAND_MAX);// & 3;
+    auto randIdx = static_cast<int>(3.0f * static_cast<float>(rand()) / RAND_MAX);
     auto dst = src - randIdx + 1;
     m_image[dst - FIRE_WIDTH] = pixel - (randIdx & 1);
   }
@@ -303,6 +331,3 @@ void DoomFireApplication::doFire() {
     }
   }
 }
-/***********************************************/
-/*************** MEAT ENDS HERE ****************/
-/***********************************************/
