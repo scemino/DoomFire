@@ -179,21 +179,11 @@ void DoomFireApplication::onInit() {
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
   glEnableVertexAttribArray(0);
 
-  auto tex_xsz = Util::nextPow2(FIRE_WIDTH);
-  auto tex_ysz = Util::nextPow2(FIRE_HEIGHT);
+  auto tex_xsz = FIRE_WIDTH;
+  auto tex_ysz = FIRE_HEIGHT;
 
-  glGenTextures(1, &m_img_tex);
-  glBindTexture(GL_TEXTURE_2D, m_img_tex);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, tex_xsz, tex_ysz, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
-
-  glGenTextures(1, &m_pal_tex);
-  glBindTexture(GL_TEXTURE_1D, m_pal_tex);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, palette);
+  m_img_tex = std::make_unique<Texture>(Texture::Format::Alpha, tex_xsz, tex_ysz, nullptr);
+  m_pal_tex = std::make_unique<Texture>(Texture::Format::Rgb, 256, palette);
 
   glUseProgram(m_shaderProgram);
   glUniform1i(glGetUniformLocation(m_shaderProgram, "img_tex"), 0);
@@ -242,9 +232,9 @@ void DoomFireApplication::onRender() {
 
   // bind textures on corresponding texture units
   glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, m_img_tex);
+  m_img_tex->bind();
   glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_1D, m_pal_tex);
+  m_pal_tex->bind();
 
   // draw our first triangle
   glUseProgram(m_shaderProgram);
@@ -276,8 +266,7 @@ void DoomFireApplication::onUpdate(const TimeSpan &elapsed) {
   // Update palette buffer
   doFire();
 
-  glBindTexture(GL_TEXTURE_2D, m_img_tex);
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, FIRE_WIDTH, FIRE_HEIGHT, GL_RED, GL_UNSIGNED_BYTE, m_image.data());
+  m_img_tex->setData(FIRE_WIDTH, FIRE_HEIGHT, m_image.data());
 }
 
 void DoomFireApplication::reshape(int x, int y) const {

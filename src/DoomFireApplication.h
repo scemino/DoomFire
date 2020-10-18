@@ -4,6 +4,7 @@
 #include "Application.h"
 #include "VertexArray.h"
 #include "VertexBuffer.h"
+#include "Texture.h"
 
 class DoomFireApplication final : public Application {
 protected:
@@ -27,5 +28,6 @@ private:
   std::unique_ptr<VertexArray> m_vao{};
   std::unique_ptr<VertexBuffer> m_vbo{};
   std::unique_ptr<VertexBuffer> m_ebo{};
-  unsigned int m_img_tex{0}, m_pal_tex{0};
+  std::unique_ptr<Texture> m_img_tex{};
+  std::unique_ptr<Texture> m_pal_tex{};
 };
