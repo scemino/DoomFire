@@ -9,37 +9,59 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-const char *vertexShaderSource = "#version 330 core\n"
-                                 "uniform mat4 xform;\n"
-                                 "layout (location = 0) in vec4 attr_vertex;\n"
-                                 "in vec2 uvscale;\n"
-                                 "out vec2 uv;\n"
-                                 "void main()\n"
-                                 "{\n"
-                                 "   gl_Position = xform * attr_vertex;\n"
-                                 "   uv = (attr_vertex.xy * vec2(0.5, -0.5) + 0.5) * uvscale;\n"
-                                 "}\0";
-const char *fragmentShaderSource = "#version 330 core\n"
-                                   "out vec4 FragColor;\n"
-                                   "in vec2 uv;\n"
-                                   "uniform sampler2D img_tex;\n"
-                                   "uniform sampler1D pal_tex;\n"
-                                   "void main()\n"
-                                   "{\n"
-                                   "  float cidx = texture(img_tex, uv).x;\n"
-                                   "  vec3 color = texture(pal_tex, cidx).xyz;\n"
-                                   "  FragColor.xyz = color;\n"
-                                   "  FragColor.a = 1.0;\n"
-                                   "}\n\0";
+static const char *vertexShaderSource =
+    R"(#version 330 core
+uniform mat4 xform;
+layout (location = 0) in vec4 attr_vertex;
+out vec2 uv;
+void main()
+{
+   gl_Position = xform * attr_vertex;
+   uv = (attr_vertex.xy * vec2(0.5, -0.5) + 0.5);
+})";
 
-constexpr float vertices[] = {
-    1.0f, 1.0f, 0.0f, 0.0f,  // top right
-    1.0f, -1.0f, 0.0f, 0.0f, // bottom right
-    -1.0f, -1.0f, 0.0f, 0.0f,// bottom left
-    -1.0f, 1.0f, 0.0f, 0.0f  // top left
+static const char *fragmentShaderSource =
+    R"(#version 330 core
+out vec4 FragColor;
+in vec2 uv;
+uniform sampler2D img_tex;
+uniform sampler1D pal_tex;
+void main()
+{
+  float cidx = texture(img_tex, uv).x;
+  vec3 color = texture(pal_tex, cidx).xyz;
+  FragColor.xyz = color;
+  FragColor.a = 1.0;
+})";
+
+struct Vertex {
+  glm::vec2 pos;
 };
 
-constexpr unsigned int indices[] = {
+enum class VertexAttributeType {
+  Byte = GL_BYTE,
+  UnsignedByte = GL_UNSIGNED_BYTE,
+  Short = GL_SHORT,
+  UnsignedShort = GL_UNSIGNED_SHORT,
+  Float = GL_FLOAT,
+};
+
+struct VertexAttribute {
+  const char *name;
+  int size;
+  VertexAttributeType type;
+  bool normalized;
+  std::size_t offset;
+};
+
+static constexpr Vertex vertices[] = {
+    {{1.0f, 1.0f}},   // top right
+    {{1.0f, -1.0f}},  // bottom right
+    {{-1.0f, -1.0f}}, // bottom left
+    {{-1.0f, 1.0f}},   // top left
+};
+
+static constexpr unsigned int indices[] = {
     // note that we start from 0!
     0, 1, 3,// first triangle
     1, 2, 3 // second triangle
@@ -128,40 +150,51 @@ void DoomFireApplication::reset() {
 void DoomFireApplication::onInit() {
   Application::onInit();
 
-  m_vbo = std::make_unique<VertexBuffer>();
-  m_ebo = std::make_unique<VertexBuffer>();
-
   reset();
 
+  m_vbo = std::make_unique<VertexBuffer>(VertexBuffer::Type::Array);
+  m_ebo = std::make_unique<VertexBuffer>(VertexBuffer::Type::Element);
   m_shader = std::make_unique<Shader>(vertexShaderSource, fragmentShaderSource);
   m_vao = std::make_unique<VertexArray>();
 
   // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
   m_vao->bind();
-  m_vbo->buffer(VertexBuffer::Type::Array, sizeof(vertices), vertices);
-  m_ebo->buffer(VertexBuffer::Type::Element, sizeof(indices), indices);
+  m_vbo->buffer(sizeof(vertices), vertices);
+  m_ebo->buffer(sizeof(indices), indices);
 
-  // position attribute
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
-  glEnableVertexAttribArray(0);
+  VertexAttribute attributes[]{
+      "attr_vertex", 2, VertexAttributeType::Float, false, sizeof(Vertex)
+  };
 
-  auto tex_xsz = FIRE_WIDTH;
-  auto tex_ysz = FIRE_HEIGHT;
+  for (auto info : attributes) {
+    auto loc = m_shader->getAttributeLocation(info.name);
+    if (loc == -1)
+      continue;
 
-  m_img_tex = std::make_unique<Texture>(Texture::Format::Alpha, tex_xsz, tex_ysz, nullptr);
+    GL_CHECK(glEnableVertexAttribArray(loc));
+    GL_CHECK(glVertexAttribPointer(loc,
+                                   info.size,
+                                   static_cast<GLenum>(info.type),
+                                   info.normalized ? GL_TRUE : GL_FALSE,
+                                   info.offset,
+                                   nullptr));
+  }
+
+  VertexArray::unbind();
+  VertexBuffer::unbind(VertexBuffer::Type::Array);
+  VertexBuffer::unbind(VertexBuffer::Type::Element);
+
+  m_img_tex = std::make_unique<Texture>(Texture::Format::Alpha, FIRE_WIDTH, FIRE_HEIGHT, nullptr);
   m_pal_tex = std::make_unique<Texture>(Texture::Format::Rgb, 256, palette);
 
-  Shader::bind(m_shader.get());
   m_shader->setUniform("img_tex", *m_img_tex);
   m_shader->setUniform("pal_tex", *m_pal_tex);
-  m_shader->setAttribute("uvscale", {(float) FIRE_WIDTH / (float) tex_xsz,
-                                   (float) FIRE_HEIGHT / (float) tex_ysz});
 }
 
 int width = 1280;
 int height = 720;
-float amountX = 0.f;
-float amountY = 0.f;
+int amountX = 0;
+int amountY = 0;
 
 void DoomFireApplication::onEvent(SDL_Event &event) {
   switch (event.type)
@@ -196,10 +229,9 @@ void DoomFireApplication::onRender() {
   glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
-  // draw our first triangle
-  Shader::bind(m_shader.get());
   m_vao->bind();
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+  m_target.draw(PrimitiveType::Triangles, ElementType::UnsignedInt, 6, m_shader.get());
+  m_vao->unbind();
 
   Application::onRender();
 }
@@ -207,19 +239,13 @@ void DoomFireApplication::onRender() {
 void DoomFireApplication::onUpdate(const TimeSpan &elapsed) {
   if (amountX != 0) {
     width += amountX;
-    if (width < 10)
-      width = 10;
-    if (width > 1280 * 2)
-      width = 1280 * 2;
+    std::clamp(width, 10,  1280 * 2);
     reshape(width, height);
   }
 
   if (amountY != 0) {
     height += amountY;
-    if (height < 10)
-      height = 10;
-    if (height > 720 * 2)
-      height = 720 * 2;
+    std::clamp(height, 10,  720 * 2);
     reshape(width, height);
   }
 
@@ -235,7 +261,7 @@ void DoomFireApplication::reshape(int x, int y) const {
 
   glViewport(0, 0, x, y);
 
-  glm::vec3 vaspect(1,1,1);
+  glm::vec3 vaspect(1, 1, 1);
   if (aspect > fbaspect) {
     vaspect[0] = fbaspect / aspect;
   } else if (fbaspect > aspect) {
@@ -243,7 +269,6 @@ void DoomFireApplication::reshape(int x, int y) const {
   }
 
   auto xform = glm::scale(glm::mat4(1), vaspect);
-  Shader::bind(m_shader.get());
   m_shader->setUniform("xform", xform);
 }
 

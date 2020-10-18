@@ -1,11 +1,11 @@
 #pragma once
-
 #include <array>
 #include "Application.h"
 #include "VertexArray.h"
 #include "VertexBuffer.h"
 #include "Texture.h"
 #include "Shader.h"
+#include "RenderTarget.h"
 
 class DoomFireApplication final : public Application {
 protected:
@@ -22,8 +22,9 @@ private:
   void doFire();
 
 private:
-  static const int FIRE_WIDTH = 640;
-  static const int FIRE_HEIGHT = 480;
+  static constexpr int FIRE_WIDTH = 640;
+  static constexpr int FIRE_HEIGHT = 480;
+  RenderTarget m_target{};
   std::array<std::uint8_t, FIRE_WIDTH * FIRE_HEIGHT> m_image{};
   std::unique_ptr<Shader> m_shader{};
   std::unique_ptr<VertexArray> m_vao{};

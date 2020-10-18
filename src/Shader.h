@@ -34,22 +34,52 @@ public:
     return m_program;
   }
 
+private:
+  struct Guard {
+    explicit Guard(const Shader& shader)
+        : m_previousProgram(0)
+        , m_currentProgram(shader.m_program)
+    {
+      GLint prev = 0;
+      GL_CHECK(glGetIntegerv(GL_CURRENT_PROGRAM, &prev));
+      m_previousProgram = prev;
+
+      if (m_previousProgram != m_currentProgram) {
+        GL_CHECK(glUseProgram(m_currentProgram));
+      }
+    }
+
+    ~Guard() {
+      if (m_previousProgram != m_currentProgram) {
+        GL_CHECK(glUseProgram(m_previousProgram));
+      }
+    }
+
+    GLuint m_previousProgram;
+    GLuint m_currentProgram;
+  };
+
+public:
   void setUniform(std::string_view name, int value) const {
+    Guard guard(*this);
     auto loc = getUniformLocation(name);
     GL_CHECK(glUniform1i(loc, value));
   }
 
   void setAttribute(std::string_view name, const glm::vec2 &value) const {
+    Guard guard(*this);
     auto loc = getAttributeLocation(name);
     GL_CHECK(glVertexAttrib2f(loc, value.x, value.y));
   }
 
   void setUniform(std::string_view name, const glm::mat4 &value) const {
+    Guard guard(*this);
     auto loc = getUniformLocation(name);
     GL_CHECK(glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(value)));
   }
 
   void setUniform(std::string_view name, const Texture& tex) {
+    Guard guard(*this);
     int loc = getUniformLocation(name);
     if (loc == -1)
       return;
@@ -74,16 +104,16 @@ public:
     }
   }
 
+  [[nodiscard]] int getAttributeLocation(std::string_view name) const {
+    GLint loc;
+    GL_CHECK(loc = glGetAttribLocation(static_cast<GLuint>(m_program), name.data()));
+    return loc;
+  }
+
 private:
   [[nodiscard]] int getUniformLocation(std::string_view name) const {
     GLint loc;
     GL_CHECK(loc = glGetUniformLocation(static_cast<GLuint>(m_program), name.data()));
-    return loc;
-  }
-
-  [[nodiscard]] int getAttributeLocation(std::string_view name) const {
-    GLint loc;
-    GL_CHECK(loc = glGetAttribLocation(static_cast<GLuint>(m_program), name.data()));
     return loc;
   }
 
