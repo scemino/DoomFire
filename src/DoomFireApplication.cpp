@@ -5,6 +5,9 @@
 #include <cstring>
 #include <imgui.h>
 #include <iostream>
+#include <glm/vec2.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 const char *vertexShaderSource = "#version 330 core\n"
                                  "uniform mat4 xform;\n"
@@ -130,44 +133,7 @@ void DoomFireApplication::onInit() {
 
   reset();
 
-  int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-  glCompileShader(vertexShader);
-  // check for shader compile errors
-  int success;
-  char infoLog[512];
-  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
-    std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
-              << infoLog << std::endl;
-  }
-  // fragment shader
-  int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
-  glCompileShader(fragmentShader);
-  // check for shader compile errors
-  glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
-    std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n"
-              << infoLog << std::endl;
-  }
-  // link shaders
-  m_shaderProgram = glCreateProgram();
-  glAttachShader(m_shaderProgram, vertexShader);
-  glAttachShader(m_shaderProgram, fragmentShader);
-  glLinkProgram(m_shaderProgram);
-  // check for linking errors
-  glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &success);
-  if (!success) {
-    glGetProgramInfoLog(m_shaderProgram, 512, nullptr, infoLog);
-    std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n"
-              << infoLog << std::endl;
-  }
-  glDeleteShader(vertexShader);
-  glDeleteShader(fragmentShader);
-
+  m_shader = std::make_unique<Shader>(vertexShaderSource, fragmentShaderSource);
   m_vao = std::make_unique<VertexArray>();
 
   // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
@@ -185,11 +151,11 @@ void DoomFireApplication::onInit() {
   m_img_tex = std::make_unique<Texture>(Texture::Format::Alpha, tex_xsz, tex_ysz, nullptr);
   m_pal_tex = std::make_unique<Texture>(Texture::Format::Rgb, 256, palette);
 
-  glUseProgram(m_shaderProgram);
-  glUniform1i(glGetUniformLocation(m_shaderProgram, "img_tex"), 0);
-  glUniform1i(glGetUniformLocation(m_shaderProgram, "pal_tex"), 1);
-  glVertexAttrib2f(glGetAttribLocation(m_shaderProgram, "uvscale"), (float) FIRE_WIDTH / (float) tex_xsz,
-                   (float) FIRE_HEIGHT / (float) tex_ysz);
+  Shader::bind(m_shader.get());
+  m_shader->setUniform("img_tex", *m_img_tex);
+  m_shader->setUniform("pal_tex", *m_pal_tex);
+  m_shader->setAttribute("uvscale", {(float) FIRE_WIDTH / (float) tex_xsz,
+                                   (float) FIRE_HEIGHT / (float) tex_ysz});
 }
 
 int width = 1280;
@@ -230,14 +196,8 @@ void DoomFireApplication::onRender() {
   glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
-  // bind textures on corresponding texture units
-  glActiveTexture(GL_TEXTURE0);
-  m_img_tex->bind();
-  glActiveTexture(GL_TEXTURE1);
-  m_pal_tex->bind();
-
   // draw our first triangle
-  glUseProgram(m_shaderProgram);
+  Shader::bind(m_shader.get());
   m_vao->bind();
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
@@ -270,26 +230,21 @@ void DoomFireApplication::onUpdate(const TimeSpan &elapsed) {
 }
 
 void DoomFireApplication::reshape(int x, int y) const {
-  int loc;
-  float aspect = (float) x / (float) y;
-  float fbaspect = (float) FIRE_WIDTH / (float) FIRE_HEIGHT;
-  float xform[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+  auto aspect = (float) x / (float) y;
+  auto fbaspect = (float) FIRE_WIDTH / (float) FIRE_HEIGHT;
 
   glViewport(0, 0, x, y);
 
+  glm::vec3 vaspect(1,1,1);
   if (aspect > fbaspect) {
-    xform[0] = fbaspect / aspect;
+    vaspect[0] = fbaspect / aspect;
   } else if (fbaspect > aspect) {
-    xform[5] = aspect / fbaspect;
+    vaspect[1] = aspect / fbaspect;
   }
 
-  glUseProgram(m_shaderProgram);
-  if ((loc = glGetUniformLocation(m_shaderProgram, "xform")) >= 0) {
-    glUniformMatrix4fv(loc, 1, GL_FALSE, xform);
-  }
-
-  auto err = glGetError();
-  assert(err == GL_NO_ERROR);
+  auto xform = glm::scale(glm::mat4(1), vaspect);
+  Shader::bind(m_shader.get());
+  m_shader->setUniform("xform", xform);
 }
 
 void DoomFireApplication::onImGuiRender() {

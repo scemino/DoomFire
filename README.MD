@@ -8,9 +8,10 @@ Take a look to [How Doom fire was done](https://fabiensanglard.net/doom_fire_psx
 
 ## Prerequisites
 
-  * [SDL2](https://www.libsdl.org/download-2.0.php): Simple DirectMedia Layer
-  * [Dear ImGui](https://github.com/ocornut/imgui): Bloat-free Immediate Mode Graphical User interface for C++ with minimal dependencies
+  * [SDL2](https://www.libsdl.org/download-2.0.php) Simple DirectMedia Layer
+  * [Dear ImGui](https://github.com/ocornut/imgui) Bloat-free Immediate Mode Graphical User interface for C++ with minimal dependencies
   * [GLEW](https://github.com/nigels-com/glew) The OpenGL Extension Wrangler Library
+  * [GLM](https://glm.g-truc.net/0.9.9/index.html) OpenGL Mathematics
     
 ## Building
 

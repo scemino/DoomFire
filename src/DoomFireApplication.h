@@ -5,6 +5,7 @@
 #include "VertexArray.h"
 #include "VertexBuffer.h"
 #include "Texture.h"
+#include "Shader.h"
 
 class DoomFireApplication final : public Application {
 protected:
@@ -24,7 +25,7 @@ private:
   static const int FIRE_WIDTH = 640;
   static const int FIRE_HEIGHT = 480;
   std::array<std::uint8_t, FIRE_WIDTH * FIRE_HEIGHT> m_image{};
-  int m_shaderProgram{0};
+  std::unique_ptr<Shader> m_shader{};
   std::unique_ptr<VertexArray> m_vao{};
   std::unique_ptr<VertexBuffer> m_vbo{};
   std::unique_ptr<VertexBuffer> m_ebo{};
